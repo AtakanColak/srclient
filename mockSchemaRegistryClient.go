@@ -11,6 +11,7 @@ import (
 
 var _ ISchemaRegistryClient = MockSchemaRegistryClient{}
 
+// MockSchemaRegistryClient that satisfies ISchemaRegistryClient for unit tests
 type MockSchemaRegistryClient struct {
 	schemaRegistryURL    string
 	credentials          *credentials
@@ -24,7 +25,7 @@ type Ids struct {
 	ids int
 }
 
-//Constructor
+// CreateMockSchemaRegistryClient constructor
 func CreateMockSchemaRegistryClient(mockURL string) MockSchemaRegistryClient {
 	mockClient := MockSchemaRegistryClient{
 		schemaRegistryURL:    mockURL,
@@ -39,7 +40,7 @@ func CreateMockSchemaRegistryClient(mockURL string) MockSchemaRegistryClient {
 }
 
 /*
-Mock Schema creation and registration. CreateSchema behaves in two possible ways according to the scenario:
+CreateSchema behaves in two possible ways according to the scenario:
 1. The schema being registered is for an already existing `concrete subject`. In that case,
 we increase our schemaID counter and register the schema under that subject in memory.
 2. The schema being registered is for a previously unknown `concrete subject`. In that case,
