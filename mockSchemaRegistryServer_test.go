@@ -34,9 +34,9 @@ func init() {
 	dummy.initializeRoutes()
 }
 
-func doRequest(t testing.TB, req *http.Request, handlerFunc http.HandlerFunc) string {
+func doRequest(t testing.TB, req *http.Request) string {
 	recorder := httptest.NewRecorder()
-	handlerFunc(recorder, req)
+	dummy.router.ServeHTTP(recorder, req)
 	resp := recorder.Result()
 	result, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
@@ -70,10 +70,10 @@ func TestContentTypeHeader(t *testing.T) {
 
 func TestGetSubjects(t *testing.T) {
 	req := httptest.NewRequest("GET", "http://example.com/subjects", nil)
-	doRequest(t, req, dummy.getSubjects)
+	doRequest(t, req)
 }
 
 func TestGetVersions(t *testing.T) {
 	req := httptest.NewRequest("GET", "http://example.com/subjects/test1/versions", nil)
-	doRequest(t, req, dummy.getVersions)
+	doRequest(t, req)
 }
