@@ -8,11 +8,18 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/riferrei/srclient"
+	"github.com/stretchr/testify/assert"
 )
 
 var dummy = srclient.TestMockSchemaRegistryServer()
 
-func doRequest(t testing.TB, method, url string, body io.Reader) string {
+func doRequest(t testing.TB, method, url string, body io.Reader, expected []byte) {
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatal(r)
+		}
+	}()
+
 	req := httptest.NewRequest(method, url, body)
 	recorder := httptest.NewRecorder()
 	dummy.Router.ServeHTTP(recorder, req)
@@ -20,10 +27,8 @@ func doRequest(t testing.TB, method, url string, body io.Reader) string {
 	result, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		t.Fatal(err.Error())
-	} else {
-		t.Log(string(result))
 	}
-	return string(result)
+	assert.Equal(t, expected, result)
 }
 
 func TestContentTypeHeader(t *testing.T) {
@@ -47,25 +52,26 @@ func TestContentTypeHeader(t *testing.T) {
 	}
 }
 
-func TestMockSchemaRegistryServer(t *testing.T) {
+func TestGetSubjects(t *testing.T) {
+	doRequest(t, "GET", "http://example.com/subjects", nil, []byte(`["test1","test2"]`))
+}
 
-	t.Run("GetSubjects", func(t *testing.T) {
-		doRequest(t, "GET", "http://example.com/subjects", nil)
-	})
+func TestGetVersions(t *testing.T) {
+	doRequest(t, "GET", "http://example.com/subjects/test1/versions", nil, []byte(`[1]`))
+}
 
-	t.Run("GetVersions", func(t *testing.T) {
-		doRequest(t, "GET", "http://example.com/subjects/test1/versions", nil)
-	})
+func TestGetSchemaTypes(t *testing.T) {
+	doRequest(t, "GET", "http://example.com/schemas/types", nil, []byte(`["AVRO"]`))
+}
 
-	t.Run("GetSchemaTypes", func(t *testing.T) {
-		doRequest(t, "GET", "http://example.com/schemas/types", nil)
-	})
+func TestGetSchemaWithID(t *testing.T) {
+	doRequest(t, "GET", "http://example.com/schemas/ids/1", nil, []byte(`{"schema":"{\"type\":\"string\"}"}`))
+}
 
-	t.Run("GetSchemaWithID", func(t *testing.T) {
-		doRequest(t, "GET", "http://example.com/schemas/ids/1", nil)
-	})
+func TestGetVersionByID(t *testing.T) {
+	doRequest(t, "GET", "http://example.com/schemas/ids/1/versions", nil, []byte(`[{"subject":"test1","version":1}]`))
+}
 
-	t.Run("GetVersionByID", func(t *testing.T) {
-		doRequest(t, "GET", "http://example.com/schemas/ids/1/versions", nil)
-	})
+func TestCheckIfSchemaExists(t *testing.T) {
+	doRequest(t, "POST", "http://example.com/subjects/test1", nil, []byte(``))
 }

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"sort"
 	"strconv"
 
 	"github.com/gorilla/mux"
@@ -129,6 +130,8 @@ func (m *MockSchemaRegistryServer) getSubjects(w http.ResponseWriter, r *http.Re
 	for subject := range subjectsMap {
 		subjects = append(subjects, subject)
 	}
+
+	sort.Strings(subjects)
 
 	respond(w, http.StatusOK, subjects)
 }
