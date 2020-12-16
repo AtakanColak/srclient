@@ -2,8 +2,9 @@ package srclient
 
 import (
 	"encoding/json"
-	"log"
+	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/gorilla/mux"
 )
@@ -68,7 +69,7 @@ func TestMockSchemaRegistryServer() *MockSchemaRegistryServer {
 				Version:    1,
 				Subject:    "test1",
 				SchemaType: Avro,
-				Schema:     "\"string\"",
+				Schema:     "{\"type\":\"string\"}",
 			},
 			{
 				ID:         2,
@@ -92,6 +93,7 @@ func (m *MockSchemaRegistryServer) initializeRoutes() {
 	m.Router.HandleFunc("/subjects", m.getSubjects).Methods("GET")
 	m.Router.HandleFunc("/schemas/types", m.getSchemaTypes).Methods("GET")
 	m.Router.HandleFunc("/schemas/ids/{id}", m.getSchemaWithID).Methods("GET")
+	m.Router.HandleFunc("/schemas/ids/{id}/versions", m.getVersionByID).Methods("GET")
 	m.Router.HandleFunc("/subjects/{subject}", m.checkIfSchemaExists).Methods("POST")
 	m.Router.HandleFunc("/subjects/{subject}", m.deleteSubject).Methods("DELETE")
 	m.Router.HandleFunc("/subjects/{subject}/versions", m.getVersions).Methods("GET")
@@ -102,6 +104,19 @@ func (m *MockSchemaRegistryServer) initializeRoutes() {
 	m.Router.HandleFunc("/compatibility/subjects/{subject}/versions/{version}", m.checkIfSchemaCompatible).Methods("POST")
 	m.Router.HandleFunc("/mode", m.handleUnimplementedModeRequest)
 	m.Router.HandleFunc("/config", m.getConfig).Methods("GET")
+}
+
+func (m *MockSchemaRegistryServer) getLatestVersionByID(id int) (mockSchemaRegistryServerSchema, error) {
+	latest := mockSchemaRegistryServerSchema{Version: -1}
+	for _, schema := range m.schemas {
+		if schema.ID == id && schema.Version > latest.Version {
+			latest = schema
+		}
+	}
+	if latest.Version == -1 {
+		return latest, errors.New("Schema not found")
+	}
+	return latest, nil
 }
 
 func (m *MockSchemaRegistryServer) getSubjects(w http.ResponseWriter, r *http.Request) {
@@ -122,8 +137,8 @@ func (m *MockSchemaRegistryServer) getVersions(w http.ResponseWriter, r *http.Re
 	vars := mux.Vars(r)
 	subject, exists := vars["subject"]
 	if !exists {
-		log.Println(vars)
 		respondWithError(w, http.StatusNotFound, 404, "HTTP 404 Not Found")
+		return
 	}
 
 	versions := make([]int, 0)
@@ -134,6 +149,23 @@ func (m *MockSchemaRegistryServer) getVersions(w http.ResponseWriter, r *http.Re
 	}
 
 	respond(w, http.StatusOK, versions)
+}
+
+func (m *MockSchemaRegistryServer) getVersionByID(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id, err := strconv.Atoi(vars["id"])
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, 400, "ID needs to be n integer")
+		return
+	}
+
+	schema, err := m.getLatestVersionByID(id)
+	if err != nil {
+		respondWithError(w, http.StatusNotFound, 40403, "Schema not found")
+		return
+	}
+
+	respond(w, http.StatusOK, []map[string]interface{}{map[string]interface{}{"subject": schema.Subject, "version": schema.Version}})
 }
 
 func (m *MockSchemaRegistryServer) getSchemaTypes(w http.ResponseWriter, r *http.Request) {
@@ -151,7 +183,20 @@ func (m *MockSchemaRegistryServer) getSchemaTypes(w http.ResponseWriter, r *http
 }
 
 func (m *MockSchemaRegistryServer) getSchemaWithID(w http.ResponseWriter, r *http.Request) {
-	panic("not implemented")
+	vars := mux.Vars(r)
+	id, err := strconv.Atoi(vars["id"])
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, 400, "ID needs to be n integer")
+		return
+	}
+
+	schema, err := m.getLatestVersionByID(id)
+	if err != nil {
+		respondWithError(w, http.StatusNotFound, 40403, "Schema not found")
+		return
+	}
+
+	respond(w, http.StatusOK, map[string]string{"schema": schema.Schema})
 }
 
 func (m *MockSchemaRegistryServer) getSchemaWithVersion(w http.ResponseWriter, r *http.Request) {

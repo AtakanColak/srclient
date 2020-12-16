@@ -60,4 +60,12 @@ func TestMockSchemaRegistryServer(t *testing.T) {
 	t.Run("GetSchemaTypes", func(t *testing.T) {
 		doRequest(t, "GET", "http://example.com/schemas/types", nil)
 	})
+
+	t.Run("GetSchemaWithID", func(t *testing.T) {
+		doRequest(t, "GET", "http://example.com/schemas/ids/1", nil)
+	})
+
+	t.Run("GetVersionByID", func(t *testing.T) {
+		doRequest(t, "GET", "http://example.com/schemas/ids/1/versions", nil)
+	})
 }
