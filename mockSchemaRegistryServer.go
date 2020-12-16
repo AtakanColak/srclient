@@ -43,21 +43,65 @@ type mockSchemaRegistryServerSchema struct {
 // MockSchemaRegistryServer is a Schema Registry implementation for testing
 // Use NewMockSchemaRegistryServer() for initialization
 type MockSchemaRegistryServer struct {
-	router  *mux.Router
+	Router  *mux.Router
 	schemas []mockSchemaRegistryServerSchema
 }
 
 // NewMockSchemaRegistryServer constructor
 func NewMockSchemaRegistryServer() *MockSchemaRegistryServer {
-	return &MockSchemaRegistryServer{
-		router:  mux.NewRouter(),
+	server := &MockSchemaRegistryServer{
+		Router:  mux.NewRouter(),
 		schemas: make([]mockSchemaRegistryServerSchema, 0),
 	}
+
+	server.initializeRoutes()
+	return server
+}
+
+// TestMockSchemaRegistryServer is a server with predefined simple data for testing
+func TestMockSchemaRegistryServer() *MockSchemaRegistryServer {
+	server := &MockSchemaRegistryServer{
+		Router: mux.NewRouter(),
+		schemas: []mockSchemaRegistryServerSchema{
+			{
+				ID:         1,
+				Version:    1,
+				Subject:    "test1",
+				SchemaType: Avro,
+				Schema:     "\"string\"",
+			},
+			{
+				ID:         2,
+				Version:    1,
+				Subject:    "test2",
+				SchemaType: Avro,
+				Schema:     "\"int\"",
+			},
+		},
+	}
+	server.initializeRoutes()
+	return server
+}
+
+// ServeHTTP to implement http.Handler interface
+func (m *MockSchemaRegistryServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	m.Router.ServeHTTP(w, r)
 }
 
 func (m *MockSchemaRegistryServer) initializeRoutes() {
-	m.router.HandleFunc("/subjects", m.getSubjects).Methods("GET")
-	m.router.HandleFunc("/subjects/{subject}/versions", m.getVersions).Methods("GET")
+	m.Router.HandleFunc("/subjects", m.getSubjects).Methods("GET")
+	m.Router.HandleFunc("/schemas/types", m.getSchemaTypes).Methods("GET")
+	m.Router.HandleFunc("/schemas/ids/{id}", m.getSchemaWithID).Methods("GET")
+	m.Router.HandleFunc("/subjects/{subject}", m.checkIfSchemaExists).Methods("POST")
+	m.Router.HandleFunc("/subjects/{subject}", m.deleteSubject).Methods("DELETE")
+	m.Router.HandleFunc("/subjects/{subject}/versions", m.getVersions).Methods("GET")
+	m.Router.HandleFunc("/subjects/{subject}/versions", m.createSchema).Methods("POST")
+	m.Router.HandleFunc("/subjects/{subject}/versions", m.deleteVersion).Methods("DELETE")
+	m.Router.HandleFunc("/subjects/{subject}/versions/{version}", m.getSchemaWithVersion).Methods("GET")
+	m.Router.HandleFunc("/subjects/{subject}/versions/{version}/schema", m.getSchemaWithVersionUnescaped).Methods("GET")
+	m.Router.HandleFunc("/compatibility/subjects/{subject}/versions/{version}", m.checkIfSchemaCompatible).Methods("POST")
+	m.Router.HandleFunc("/mode", m.handleUnimplementedModeRequest)
+	m.Router.HandleFunc("/config", m.getConfig).Methods("GET")
 }
 
 func (m *MockSchemaRegistryServer) getSubjects(w http.ResponseWriter, r *http.Request) {
@@ -90,6 +134,64 @@ func (m *MockSchemaRegistryServer) getVersions(w http.ResponseWriter, r *http.Re
 	}
 
 	respond(w, http.StatusOK, versions)
+}
+
+func (m *MockSchemaRegistryServer) getSchemaTypes(w http.ResponseWriter, r *http.Request) {
+	types := make(map[SchemaType]bool)
+	for _, schema := range m.schemas {
+		types[schema.SchemaType] = true
+	}
+
+	typesArr := make([]string, 0)
+	for t := range types {
+		typesArr = append(typesArr, string(t))
+	}
+
+	respond(w, http.StatusOK, typesArr)
+}
+
+func (m *MockSchemaRegistryServer) getSchemaWithID(w http.ResponseWriter, r *http.Request) {
+	panic("not implemented")
+}
+
+func (m *MockSchemaRegistryServer) getSchemaWithVersion(w http.ResponseWriter, r *http.Request) {
+	panic("not implemented")
+}
+
+func (m *MockSchemaRegistryServer) getSchemaWithVersionUnescaped(w http.ResponseWriter, r *http.Request) {
+	panic("not implemented")
+}
+
+func (m *MockSchemaRegistryServer) createSchema(w http.ResponseWriter, r *http.Request) {
+	panic("not implemented")
+}
+
+func (m *MockSchemaRegistryServer) checkIfSchemaExists(w http.ResponseWriter, r *http.Request) {
+	panic("not implemented")
+}
+
+func (m *MockSchemaRegistryServer) checkIfSchemaCompatible(w http.ResponseWriter, r *http.Request) {
+	panic("not implemented")
+}
+
+func (m *MockSchemaRegistryServer) deleteSubject(w http.ResponseWriter, r *http.Request) {
+	panic("not implemented")
+}
+
+func (m *MockSchemaRegistryServer) deleteVersion(w http.ResponseWriter, r *http.Request) {
+	panic("not implemented")
+}
+
+func (m *MockSchemaRegistryServer) handleUnimplementedModeRequest(w http.ResponseWriter, r *http.Request) {
+	panic("not implemented")
+}
+
+func (m *MockSchemaRegistryServer) getConfig(w http.ResponseWriter, r *http.Request) {
+	panic("not implemented")
+}
+
+func (m *MockSchemaRegistryServer) handleUnimplementedConfigRequest(w http.ResponseWriter, r *http.Request) {
+	panic("not implemented")
 }
 
 func respondWithError(w http.ResponseWriter, statusCode, errorCode int, message string) {

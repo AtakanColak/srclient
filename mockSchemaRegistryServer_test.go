@@ -1,42 +1,21 @@
-package srclient
+package srclient_test
 
 import (
+	"io"
 	"io/ioutil"
-	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/gorilla/mux"
+	"github.com/riferrei/srclient"
 )
 
-var dummy *MockSchemaRegistryServer
+var dummy = srclient.TestMockSchemaRegistryServer()
 
-func init() {
-	dummy = &MockSchemaRegistryServer{
-		router: mux.NewRouter(),
-		schemas: []mockSchemaRegistryServerSchema{
-			{
-				ID:         1,
-				Version:    1,
-				Subject:    "test1",
-				SchemaType: Avro,
-				Schema:     "\"string\"",
-			},
-			{
-				ID:         2,
-				Version:    1,
-				Subject:    "test2",
-				SchemaType: Avro,
-				Schema:     "\"int\"",
-			},
-		},
-	}
-	dummy.initializeRoutes()
-}
-
-func doRequest(t testing.TB, req *http.Request) string {
+func doRequest(t testing.TB, method, url string, body io.Reader) string {
+	req := httptest.NewRequest(method, url, body)
 	recorder := httptest.NewRecorder()
-	dummy.router.ServeHTTP(recorder, req)
+	dummy.Router.ServeHTTP(recorder, req)
 	resp := recorder.Result()
 	result, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
@@ -68,12 +47,17 @@ func TestContentTypeHeader(t *testing.T) {
 	}
 }
 
-func TestGetSubjects(t *testing.T) {
-	req := httptest.NewRequest("GET", "http://example.com/subjects", nil)
-	doRequest(t, req)
-}
+func TestMockSchemaRegistryServer(t *testing.T) {
 
-func TestGetVersions(t *testing.T) {
-	req := httptest.NewRequest("GET", "http://example.com/subjects/test1/versions", nil)
-	doRequest(t, req)
+	t.Run("GetSubjects", func(t *testing.T) {
+		doRequest(t, "GET", "http://example.com/subjects", nil)
+	})
+
+	t.Run("GetVersions", func(t *testing.T) {
+		doRequest(t, "GET", "http://example.com/subjects/test1/versions", nil)
+	})
+
+	t.Run("GetSchemaTypes", func(t *testing.T) {
+		doRequest(t, "GET", "http://example.com/schemas/types", nil)
+	})
 }
