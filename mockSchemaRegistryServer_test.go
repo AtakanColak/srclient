@@ -75,3 +75,35 @@ func TestGetVersionByID(t *testing.T) {
 func TestCheckIfSchemaExists(t *testing.T) {
 	doRequest(t, "POST", "http://example.com/subjects/test1", nil, []byte(``))
 }
+
+func TestDeleteSubject(t *testing.T) {
+	doRequest(t, "DELETE", "http://example.com/subjects/test1", nil, []byte(``))
+}
+
+func TestCreateSchema(t *testing.T) {
+	doRequest(t, "POST", "http://example.com/subjects/versions", nil, []byte(``))
+}
+
+func TestDeleteVersion(t *testing.T) {
+	doRequest(t, "DELETE", "http://example.com/subjects/test1/versions", nil, []byte(``))
+}
+
+func TestGetSchemaWithVersion(t *testing.T) {
+	doRequest(t, "GET", "http://example.com/subjects/test1/versions/latest", nil, []byte(``))
+}
+
+func TestGetSchemaWithVersionUnescaped(t *testing.T) {
+	doRequest(t, "GET", "http://example.com/subjects/test1/versions/latest/schema", nil, []byte(``))
+}
+
+func TestCheckIfSchemaCompatible(t *testing.T) {
+	doRequest(t, "POST", "http://example.com/compatibility/subjects/test1/versions/latest", nil, []byte(``))
+}
+
+func TestGetConfig(t *testing.T) {
+	doRequest(t, "GET", "http://example.com/config", nil, []byte(``))
+}
+
+func TestMode(t *testing.T) {
+	doRequest(t, "GET", "http://example.com/mode", nil, []byte(``))
+}
