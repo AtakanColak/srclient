@@ -23,6 +23,7 @@ const (
 )
 
 const (
+	responseContentType         = "application/vnd.schemaregistry.v1+json"
 	acceptableContentTypesRegex = "application/(vnd\\.schemaregistry\\.v1\\+json|vnd\\.schemaregistry\\+json|octet\\-stream|json)"
 )
 
@@ -98,7 +99,7 @@ func respondWithError(w http.ResponseWriter, statusCode, errorCode int, message 
 func respond(w http.ResponseWriter, statusCode int, payload interface{}) {
 	response, _ := json.Marshal(payload)
 
-	w.Header().Set("Content-Type", "application/vnd.schemaregistry.v1+json")
+	w.Header().Set("Content-Type", responseContentType)
 	w.WriteHeader(statusCode)
 	w.Write(response)
 }
