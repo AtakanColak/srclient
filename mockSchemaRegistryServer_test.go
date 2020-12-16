@@ -1,6 +1,8 @@
 package srclient_test
 
 import (
+	"bytes"
+	"encoding/json"
 	"io"
 	"io/ioutil"
 	"net/http/httptest"
@@ -73,7 +75,15 @@ func TestGetVersionByID(t *testing.T) {
 }
 
 func TestCheckIfSchemaExists(t *testing.T) {
-	doRequest(t, "POST", "http://example.com/subjects/test1", nil, []byte(``))
+	buffer := new(bytes.Buffer)
+	sr := map[string]interface{}{
+		"schema":     "{\"type\":\"string\"}",
+		"schemaType": "AVRO",
+	}
+	if err := json.NewEncoder(buffer).Encode(&sr); err != nil {
+		t.Fatal(err.Error())
+	}
+	doRequest(t, "POST", "http://example.com/subjects/test1", buffer, []byte(`{"id":1,"schema":"{\"type\":\"string\"}","subject":"test1","version":1}`))
 }
 
 func TestDeleteSubject(t *testing.T) {

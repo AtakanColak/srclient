@@ -95,7 +95,7 @@ type credentials struct {
 type schemaRequest struct {
 	Schema     string      `json:"schema"`
 	SchemaType string      `json:"schemaType"`
-	References []Reference `json:"references"`
+	References []Reference `json:"references,omitempty"`
 }
 
 type schemaResponse struct {

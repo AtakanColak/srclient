@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"reflect"
 	"sort"
 	"strconv"
 
@@ -42,7 +43,8 @@ type mockSchemaRegistryServerSchema struct {
 	Schema     string
 }
 
-// MockSchemaRegistryServer is a Schema Registry implementation for testing
+// MockSchemaRegistryServer is a Schema Registry implementation
+// Use only for testing, it has bad performance
 // Use NewMockSchemaRegistryServer() for initialization
 type MockSchemaRegistryServer struct {
 	Router  *mux.Router
@@ -105,6 +107,19 @@ func (m *MockSchemaRegistryServer) initializeRoutes() {
 	m.Router.HandleFunc("/compatibility/subjects/{subject}/versions/{version}", m.checkIfSchemaCompatible).Methods("POST")
 	m.Router.HandleFunc("/mode", m.handleUnimplementedModeRequest)
 	m.Router.HandleFunc("/config", m.getConfig).Methods("GET")
+}
+
+func (m *MockSchemaRegistryServer) getLatestVersionBySubject(subject string) (mockSchemaRegistryServerSchema, error) {
+	latest := mockSchemaRegistryServerSchema{Version: -1}
+	for _, schema := range m.schemas {
+		if schema.Subject == subject && schema.Version > latest.Version {
+			latest = schema
+		}
+	}
+	if latest.Version == -1 {
+		return latest, errors.New("Schema not found")
+	}
+	return latest, nil
 }
 
 func (m *MockSchemaRegistryServer) getLatestVersionByID(id int) (mockSchemaRegistryServerSchema, error) {
@@ -215,7 +230,45 @@ func (m *MockSchemaRegistryServer) createSchema(w http.ResponseWriter, r *http.R
 }
 
 func (m *MockSchemaRegistryServer) checkIfSchemaExists(w http.ResponseWriter, r *http.Request) {
-	panic("not implemented")
+	vars := mux.Vars(r)
+	subject, exists := vars["subject"]
+	if !exists {
+		respondWithError(w, http.StatusNotFound, 404, "HTTP 404 Not Found")
+		return
+	}
+
+	sr := new(schemaRequest)
+	if err := json.NewDecoder(r.Body).Decode(sr); err != nil {
+		respondWithError(w, http.StatusInternalServerError, 500, "Internal server error")
+		return
+	}
+
+	requested := make(map[string]interface{})
+	if err := json.Unmarshal([]byte(sr.Schema), &requested); err != nil {
+		respondWithError(w, http.StatusInternalServerError, 500, "Internal server error")
+		return
+	}
+
+	for _, schema := range m.schemas {
+		if schema.Subject == subject && string(schema.SchemaType) == sr.SchemaType {
+			existing := make(map[string]interface{})
+			if err := json.Unmarshal([]byte(schema.Schema), &existing); err != nil {
+				continue
+			}
+
+			if reflect.DeepEqual(requested, existing) {
+				respond(w, http.StatusOK, map[string]interface{}{
+					"subject": subject,
+					"id":      schema.ID,
+					"version": schema.Version,
+					"schema":  schema.Schema,
+				})
+				return
+			}
+		}
+	}
+
+	respondWithError(w, http.StatusNotFound, 40403, "Schema not found")
 }
 
 func (m *MockSchemaRegistryServer) checkIfSchemaCompatible(w http.ResponseWriter, r *http.Request) {
