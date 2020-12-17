@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"sort"
 	"strconv"
+	"sync"
 
 	"github.com/gorilla/mux"
 )
@@ -47,8 +48,9 @@ type mockSchemaRegistryServerSchema struct {
 // Use only for testing, it has bad performance
 // Use NewMockSchemaRegistryServer() for initialization
 type MockSchemaRegistryServer struct {
-	Router  *mux.Router
-	schemas []mockSchemaRegistryServerSchema
+	Router      *mux.Router
+	schemas     []mockSchemaRegistryServerSchema
+	schemasLock sync.RWMutex
 }
 
 // NewMockSchemaRegistryServer constructor
@@ -109,9 +111,21 @@ func (m *MockSchemaRegistryServer) initializeRoutes() {
 	m.Router.HandleFunc("/config", m.getConfig).Methods("GET")
 }
 
+func (m *MockSchemaRegistryServer) getSchemas() []mockSchemaRegistryServerSchema {
+	m.schemasLock.RLock()
+	defer m.schemasLock.RUnlock()
+	return m.schemas
+}
+
+func (m *MockSchemaRegistryServer) setSchemas(newSchemas []mockSchemaRegistryServerSchema) {
+	m.schemasLock.Lock()
+	defer m.schemasLock.Unlock()
+	m.schemas = newSchemas
+}
+
 func (m *MockSchemaRegistryServer) getLatestVersionBySubject(subject string) (mockSchemaRegistryServerSchema, error) {
 	latest := mockSchemaRegistryServerSchema{Version: -1}
-	for _, schema := range m.schemas {
+	for _, schema := range m.getSchemas() {
 		if schema.Subject == subject && schema.Version > latest.Version {
 			latest = schema
 		}
@@ -124,7 +138,7 @@ func (m *MockSchemaRegistryServer) getLatestVersionBySubject(subject string) (mo
 
 func (m *MockSchemaRegistryServer) getLatestVersionByID(id int) (mockSchemaRegistryServerSchema, error) {
 	latest := mockSchemaRegistryServerSchema{Version: -1}
-	for _, schema := range m.schemas {
+	for _, schema := range m.getSchemas() {
 		if schema.ID == id && schema.Version > latest.Version {
 			latest = schema
 		}
@@ -137,7 +151,7 @@ func (m *MockSchemaRegistryServer) getLatestVersionByID(id int) (mockSchemaRegis
 
 func (m *MockSchemaRegistryServer) getSubjects(w http.ResponseWriter, r *http.Request) {
 	subjectsMap := make(map[string]bool)
-	for _, schema := range m.schemas {
+	for _, schema := range m.getSchemas() {
 		subjectsMap[schema.Subject] = true
 	}
 
@@ -160,7 +174,7 @@ func (m *MockSchemaRegistryServer) getVersions(w http.ResponseWriter, r *http.Re
 	}
 
 	versions := make([]int, 0)
-	for _, schema := range m.schemas {
+	for _, schema := range m.getSchemas() {
 		if schema.Subject == subject {
 			versions = append(versions, schema.Version)
 		}
@@ -188,7 +202,7 @@ func (m *MockSchemaRegistryServer) getVersionByID(w http.ResponseWriter, r *http
 
 func (m *MockSchemaRegistryServer) getSchemaTypes(w http.ResponseWriter, r *http.Request) {
 	types := make(map[SchemaType]bool)
-	for _, schema := range m.schemas {
+	for _, schema := range m.getSchemas() {
 		types[schema.SchemaType] = true
 	}
 
@@ -249,7 +263,7 @@ func (m *MockSchemaRegistryServer) checkIfSchemaExists(w http.ResponseWriter, r 
 		return
 	}
 
-	for _, schema := range m.schemas {
+	for _, schema := range m.getSchemas() {
 		if schema.Subject == subject && string(schema.SchemaType) == sr.SchemaType {
 			existing := make(map[string]interface{})
 			if err := json.Unmarshal([]byte(schema.Schema), &existing); err != nil {
@@ -275,8 +289,26 @@ func (m *MockSchemaRegistryServer) checkIfSchemaCompatible(w http.ResponseWriter
 	panic("not implemented")
 }
 
+// deleteSubject doesn't differentiate between permanent or not
 func (m *MockSchemaRegistryServer) deleteSubject(w http.ResponseWriter, r *http.Request) {
-	panic("not implemented")
+	vars := mux.Vars(r)
+	subject, exists := vars["subject"]
+	if !exists {
+		respondWithError(w, http.StatusNotFound, 404, "HTTP 404 Not Found")
+		return
+	}
+
+	purified := make([]mockSchemaRegistryServerSchema, 0)
+	deletedVersions := make([]int, 0)
+	for _, schema := range m.getSchemas() {
+		if schema.Subject != subject {
+			purified = append(purified, schema)
+		} else {
+			deletedVersions = append(deletedVersions, schema.Version)
+		}
+	}
+	m.setSchemas(purified)
+	respond(w, http.StatusOK, deletedVersions)
 }
 
 func (m *MockSchemaRegistryServer) deleteVersion(w http.ResponseWriter, r *http.Request) {

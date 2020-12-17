@@ -87,11 +87,11 @@ func TestCheckIfSchemaExists(t *testing.T) {
 }
 
 func TestDeleteSubject(t *testing.T) {
-	doRequest(t, "DELETE", "http://example.com/subjects/test1", nil, []byte(``))
+	doRequest(t, "DELETE", "http://example.com/subjects/test1", nil, []byte(`[1]`))
 }
 
 func TestCreateSchema(t *testing.T) {
-	doRequest(t, "POST", "http://example.com/subjects/versions", nil, []byte(``))
+	doRequest(t, "POST", "http://example.com/subjects/test1/versions", nil, []byte(``))
 }
 
 func TestDeleteVersion(t *testing.T) {
