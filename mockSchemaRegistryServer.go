@@ -103,7 +103,7 @@ func (m *MockSchemaRegistryServer) initializeRoutes() {
 	m.Router.HandleFunc("/subjects/{subject}", m.deleteSubject).Methods("DELETE")
 	m.Router.HandleFunc("/subjects/{subject}/versions", m.getVersions).Methods("GET")
 	m.Router.HandleFunc("/subjects/{subject}/versions", m.createSchema).Methods("POST")
-	m.Router.HandleFunc("/subjects/{subject}/versions", m.deleteVersion).Methods("DELETE")
+	m.Router.HandleFunc("/subjects/{subject}/versions/{version}", m.deleteVersion).Methods("DELETE")
 	m.Router.HandleFunc("/subjects/{subject}/versions/{version}", m.getSchemaWithVersion).Methods("GET")
 	m.Router.HandleFunc("/subjects/{subject}/versions/{version}/schema", m.getSchemaWithVersionUnescaped).Methods("GET")
 	m.Router.HandleFunc("/compatibility/subjects/{subject}/versions/{version}", m.checkIfSchemaCompatible).Methods("POST")
@@ -232,7 +232,52 @@ func (m *MockSchemaRegistryServer) getSchemaWithID(w http.ResponseWriter, r *htt
 }
 
 func (m *MockSchemaRegistryServer) getSchemaWithVersion(w http.ResponseWriter, r *http.Request) {
-	panic("not implemented")
+	vars := mux.Vars(r)
+	subject, subjectExists := vars["subject"]
+	version, versionExists := vars["version"]
+	if !subjectExists || !versionExists {
+		respondWithError(w, http.StatusNotFound, 404, "HTTP 404 Not Found")
+		return
+	}
+
+	v := -1
+	if version == "latest" {
+		for _, schema := range m.getSchemas() {
+			if schema.Subject == subject && schema.Version > v {
+				v = schema.Version
+			}
+		}
+		if v == -1 {
+			respondWithError(w, http.StatusNotFound, 40402, "Version Not Found")
+			return
+		}
+	} else {
+		vNum, err := strconv.Atoi(version)
+		if err != nil {
+			respondWithError(w, http.StatusNotFound, 40402, "Version Not Found")
+			return
+		}
+		v = vNum
+	}
+
+	var schemaToReturn mockSchemaRegistryServerSchema
+
+	purified := make([]mockSchemaRegistryServerSchema, 0)
+	for _, schema := range m.getSchemas() {
+		if schema.Subject == subject && schema.Version == v {
+			schemaToReturn = schema
+			continue
+		}
+
+		purified = append(purified, schema)
+	}
+	m.setSchemas(purified)
+	respond(w, http.StatusOK, schemaResponse{
+		Subject: schemaToReturn.Subject,
+		ID:      schemaToReturn.ID,
+		Version: schemaToReturn.Version,
+		Schema:  schemaToReturn.Schema,
+	})
 }
 
 func (m *MockSchemaRegistryServer) getSchemaWithVersionUnescaped(w http.ResponseWriter, r *http.Request) {
@@ -240,7 +285,43 @@ func (m *MockSchemaRegistryServer) getSchemaWithVersionUnescaped(w http.Response
 }
 
 func (m *MockSchemaRegistryServer) createSchema(w http.ResponseWriter, r *http.Request) {
-	panic("not implemented")
+	vars := mux.Vars(r)
+	subject, exists := vars["subject"]
+	if !exists {
+		respondWithError(w, http.StatusNotFound, 404, "HTTP 404 Not Found")
+		return
+	}
+
+	req := new(schemaRequest)
+	if err := json.NewDecoder(r.Body).Decode(req); err != nil {
+		respondWithError(w, http.StatusUnprocessableEntity, 42201, "Invalid schema request")
+		return
+	}
+	newSchema := mockSchemaRegistryServerSchema{
+		Subject:    subject,
+		Schema:     req.Schema,
+		SchemaType: SchemaType(req.SchemaType),
+	}
+
+	for _, schema := range m.getSchemas() {
+		if schema.ID >= newSchema.ID {
+			newSchema.ID = schema.ID + 1
+		}
+
+		if schema.Subject == newSchema.Subject && schema.Version >= newSchema.Version {
+			newSchema.Version = schema.Version + 1
+		}
+	}
+
+	newSchemas := append(m.getSchemas(), newSchema)
+
+	m.setSchemas(newSchemas)
+	respond(w, http.StatusOK, schemaResponse{
+		Subject: newSchema.Subject,
+		ID:      newSchema.ID,
+		Version: newSchema.Version,
+		Schema:  newSchema.Schema,
+	})
 }
 
 func (m *MockSchemaRegistryServer) checkIfSchemaExists(w http.ResponseWriter, r *http.Request) {
@@ -271,11 +352,11 @@ func (m *MockSchemaRegistryServer) checkIfSchemaExists(w http.ResponseWriter, r 
 			}
 
 			if reflect.DeepEqual(requested, existing) {
-				respond(w, http.StatusOK, map[string]interface{}{
-					"subject": subject,
-					"id":      schema.ID,
-					"version": schema.Version,
-					"schema":  schema.Schema,
+				respond(w, http.StatusOK, schemaResponse{
+					Subject: subject,
+					ID:      schema.ID,
+					Version: schema.Version,
+					Schema:  schema.Schema,
 				})
 				return
 			}
@@ -312,7 +393,60 @@ func (m *MockSchemaRegistryServer) deleteSubject(w http.ResponseWriter, r *http.
 }
 
 func (m *MockSchemaRegistryServer) deleteVersion(w http.ResponseWriter, r *http.Request) {
-	panic("not implemented")
+	vars := mux.Vars(r)
+	subject, subjectExists := vars["subject"]
+	version, versionExists := vars["version"]
+	if !subjectExists || !versionExists {
+		respondWithError(w, http.StatusNotFound, 404, "HTTP 404 Not Found")
+		return
+	}
+
+	versions := make([]mockSchemaRegistryServerSchema, 0)
+	for _, schema := range m.getSchemas() {
+		if schema.Subject == subject {
+			versions = append(versions, schema)
+		}
+	}
+
+	if len(versions) == 0 {
+		respondWithError(w, http.StatusNotFound, 40401, "Subject Not Found")
+		return
+	}
+
+	purified := make([]mockSchemaRegistryServerSchema, 0)
+
+	if version == "latest" {
+		latest := versions[0]
+		for _, schema := range versions {
+			if schema.Version > latest.Version {
+				latest = schema
+			}
+		}
+
+		for _, schema := range m.getSchemas() {
+			if schema.Subject == subject && schema.Version == latest.Version {
+				continue
+			}
+			purified = append(purified, schema)
+		}
+		m.setSchemas(purified)
+		respond(w, http.StatusOK, latest.Version)
+		return
+	}
+
+	v, err := strconv.Atoi(version)
+	if err != nil {
+		respondWithError(w, http.StatusNotFound, 40402, "Version Not Found")
+		return
+	}
+
+	for _, schema := range m.getSchemas() {
+		if schema.Version != v {
+			purified = append(purified, schema)
+		}
+	}
+	m.setSchemas(purified)
+	respond(w, http.StatusOK, v)
 }
 
 func (m *MockSchemaRegistryServer) handleUnimplementedModeRequest(w http.ResponseWriter, r *http.Request) {

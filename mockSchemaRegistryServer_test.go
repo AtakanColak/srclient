@@ -13,9 +13,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-var dummy = srclient.TestMockSchemaRegistryServer()
-
 func doRequest(t testing.TB, method, url string, body io.Reader, expected []byte) {
+	dummy := srclient.TestMockSchemaRegistryServer()
 	defer func() {
 		if r := recover(); r != nil {
 			t.Fatal(r)
@@ -83,7 +82,7 @@ func TestCheckIfSchemaExists(t *testing.T) {
 	if err := json.NewEncoder(buffer).Encode(&sr); err != nil {
 		t.Fatal(err.Error())
 	}
-	doRequest(t, "POST", "http://example.com/subjects/test1", buffer, []byte(`{"id":1,"schema":"{\"type\":\"string\"}","subject":"test1","version":1}`))
+	doRequest(t, "POST", "http://example.com/subjects/test1", buffer, []byte(`{"subject":"test1","version":1,"schema":"{\"type\":\"string\"}","id":1}`))
 }
 
 func TestDeleteSubject(t *testing.T) {
@@ -91,15 +90,25 @@ func TestDeleteSubject(t *testing.T) {
 }
 
 func TestCreateSchema(t *testing.T) {
-	doRequest(t, "POST", "http://example.com/subjects/test1/versions", nil, []byte(``))
+	buffer := new(bytes.Buffer)
+	sr := map[string]interface{}{
+		"schema":     "{\"type\":\"string\", \"name\":\"address\"}",
+		"schemaType": "AVRO",
+	}
+	if err := json.NewEncoder(buffer).Encode(&sr); err != nil {
+		t.Fatal(err.Error())
+	}
+	doRequest(t, "POST", "http://example.com/subjects/test1/versions", buffer, []byte(`{"subject":"test1","version":2,"schema":"{\"type\":\"string\", \"name\":\"address\"}","id":3}`))
 }
 
 func TestDeleteVersion(t *testing.T) {
-	doRequest(t, "DELETE", "http://example.com/subjects/test1/versions", nil, []byte(``))
+	doRequest(t, "DELETE", "http://example.com/subjects/test1/versions/latest", nil, []byte(`1`))
+	doRequest(t, "DELETE", "http://example.com/subjects/test1/versions/1", nil, []byte(`1`))
 }
 
 func TestGetSchemaWithVersion(t *testing.T) {
-	doRequest(t, "GET", "http://example.com/subjects/test1/versions/latest", nil, []byte(``))
+	doRequest(t, "GET", "http://example.com/subjects/test1/versions/latest", nil, []byte(`{"subject":"test1","version":1,"schema":"{\"type\":\"string\"}","id":1}`))
+	doRequest(t, "GET", "http://example.com/subjects/test1/versions/1", nil, []byte(`{"subject":"test1","version":1,"schema":"{\"type\":\"string\"}","id":1}`))
 }
 
 func TestGetSchemaWithVersionUnescaped(t *testing.T) {
