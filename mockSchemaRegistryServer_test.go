@@ -112,11 +112,18 @@ func TestGetSchemaWithVersion(t *testing.T) {
 }
 
 func TestGetSchemaWithVersionUnescaped(t *testing.T) {
-	doRequest(t, "GET", "http://example.com/subjects/test1/versions/latest/schema", nil, []byte(``))
+	doRequest(t, "GET", "http://example.com/subjects/test1/versions/latest/schema", nil, []byte(`{"type":"string"}`))
 }
 
 func TestCheckIfSchemaCompatible(t *testing.T) {
-	doRequest(t, "POST", "http://example.com/compatibility/subjects/test1/versions/latest", nil, []byte(``))
+	var buffer bytes.Buffer
+	if err := json.NewEncoder(&buffer).Encode(map[string]interface{}{
+		"schema":     "{\"type\":\"string\", \"name\":\"address\"}",
+		"schemaType": "AVRO",
+	}); err != nil {
+		t.Fatal(err.Error())
+	}
+	doRequest(t, "POST", "http://example.com/compatibility/subjects/test1/versions/latest", &buffer, []byte(`{"is_compatible":true}`))
 }
 
 func TestGetConfig(t *testing.T) {

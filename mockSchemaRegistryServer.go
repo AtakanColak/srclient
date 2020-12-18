@@ -1,12 +1,17 @@
 package srclient
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"net/http"
+	"net/http/httptest"
 	"reflect"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/gorilla/mux"
@@ -121,6 +126,20 @@ func (m *MockSchemaRegistryServer) setSchemas(newSchemas []mockSchemaRegistrySer
 	m.schemasLock.Lock()
 	defer m.schemasLock.Unlock()
 	m.schemas = newSchemas
+}
+
+func (m *MockSchemaRegistryServer) getSchema(subject, version string) (mockSchemaRegistryServerSchema, error) {
+	if version == "latest" {
+		return m.getLatestVersionBySubject(subject)
+	}
+
+	for _, schema := range m.getSchemas() {
+		if schema.Subject == subject && fmt.Sprint(schema.Version) == version {
+			return schema, nil
+		}
+	}
+
+	return mockSchemaRegistryServerSchema{}, errors.New("schema not found")
 }
 
 func (m *MockSchemaRegistryServer) getLatestVersionBySubject(subject string) (mockSchemaRegistryServerSchema, error) {
@@ -281,7 +300,23 @@ func (m *MockSchemaRegistryServer) getSchemaWithVersion(w http.ResponseWriter, r
 }
 
 func (m *MockSchemaRegistryServer) getSchemaWithVersionUnescaped(w http.ResponseWriter, r *http.Request) {
-	panic("not implemented")
+	recorder := httptest.NewRecorder()
+	m.getSchemaWithVersion(recorder, r)
+	var sr schemaResponse
+	var buf bytes.Buffer
+	bufDuplicate := io.TeeReader(recorder.Result().Body, &buf)
+	if err := json.NewDecoder(bufDuplicate).Decode(&sr); err != nil {
+		io.Copy(w, &buf)
+		return
+	}
+
+	var schema map[string]interface{}
+	if err := json.NewDecoder(strings.NewReader(sr.Schema)).Decode(&schema); err != nil {
+		respondWithError(w, http.StatusInternalServerError, 500, "Schema is stored in an incorrect format")
+		return
+	}
+
+	respond(w, http.StatusOK, schema)
 }
 
 func (m *MockSchemaRegistryServer) createSchema(w http.ResponseWriter, r *http.Request) {
@@ -367,7 +402,47 @@ func (m *MockSchemaRegistryServer) checkIfSchemaExists(w http.ResponseWriter, r 
 }
 
 func (m *MockSchemaRegistryServer) checkIfSchemaCompatible(w http.ResponseWriter, r *http.Request) {
-	panic("not implemented")
+	vars := mux.Vars(r)
+	subject, subjectExists := vars["subject"]
+	version, versionExists := vars["version"]
+	if !subjectExists || !versionExists {
+		respondWithError(w, http.StatusNotFound, 404, "HTTP 404 Not Found")
+		return
+	}
+
+	target, err := m.getSchema(subject, version)
+	if err != nil {
+		respondWithError(w, http.StatusNotFound, 40403, "Subject or Version Not Found")
+		return
+	}
+
+	sr := new(schemaRequest)
+
+	if err := json.NewDecoder(r.Body).Decode(sr); err != nil {
+		respondWithError(w, http.StatusUnprocessableEntity, 42201, "Invalid schema")
+		return
+	}
+
+	var existing, future map[string]interface{}
+
+	if err := json.NewDecoder(strings.NewReader(sr.Schema)).Decode(&future); err != nil {
+		respondWithError(w, http.StatusUnprocessableEntity, 42201, "Invalid schema")
+		return
+	}
+
+	if err := json.NewDecoder(strings.NewReader(target.Schema)).Decode(&existing); err != nil {
+		respondWithError(w, http.StatusInternalServerError, 50001, "Error in the backend data store")
+		return
+	}
+
+	for key := range existing {
+		if _, exists := future[key]; !exists {
+			respond(w, http.StatusOK, map[string]interface{}{"is_compatible": false})
+			return
+		}
+	}
+	respond(w, http.StatusOK, map[string]interface{}{"is_compatible": true})
+	return
 }
 
 // deleteSubject doesn't differentiate between permanent or not
