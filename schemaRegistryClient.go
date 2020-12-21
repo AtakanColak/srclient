@@ -17,24 +17,6 @@ import (
 	"golang.org/x/sync/semaphore"
 )
 
-// ISchemaRegistryClient provides the
-// definition of the operations that
-// this Schema Registry client provides.
-type ISchemaRegistryClient interface {
-	GetSubjects() ([]string, error)
-	GetSchema(schemaID int) (*Schema, error)
-	GetLatestSchema(subject string, isKey bool) (*Schema, error)
-	GetSchemaVersions(subject string, isKey bool) ([]int, error)
-	GetSchemaByVersion(subject string, version int, isKey bool) (*Schema, error)
-	CreateSchema(subject string, schema string, schemaType SchemaType, isKey bool, references ...Reference) (*Schema, error)
-	DeleteSubject(subject string, permanent bool) error
-	SetCredentials(username string, password string)
-	SetTimeout(timeout time.Duration)
-	CachingEnabled(value bool)
-	CodecCreationEnabled(value bool)
-	IsSchemaCompatible(subject, schema, version string, schemaType SchemaType, isKey bool) (bool, error)
-}
-
 // SchemaRegistryClient allows interactions with
 // Schema Registry over HTTP. Applications using
 // this client can retrieve data about schemas,
@@ -56,58 +38,6 @@ type SchemaRegistryClient struct {
 }
 
 var _ ISchemaRegistryClient = new(SchemaRegistryClient)
-
-type SchemaType string
-
-const (
-	Protobuf SchemaType = "PROTOBUF"
-	Avro     SchemaType = "AVRO"
-	Json     SchemaType = "JSON"
-)
-
-func (s SchemaType) String() string {
-	return string(s)
-}
-
-// Schema references use the import statement of Protobuf and
-// the $ref field of JSON Schema. They are defined by the name
-// of the import or $ref and the associated subject in the registry.
-type Reference struct {
-	Name    string `json:"name"`
-	Subject string `json:"subject"`
-	Version int    `json:"version"`
-}
-
-// Schema is a data structure that holds all
-// the relevant information about schemas.
-type Schema struct {
-	id      int
-	schema  string
-	version int
-	codec   *goavro.Codec
-}
-
-type credentials struct {
-	username string
-	password string
-}
-
-type schemaRequest struct {
-	Schema     string      `json:"schema"`
-	SchemaType string      `json:"schemaType"`
-	References []Reference `json:"references,omitempty"`
-}
-
-type schemaResponse struct {
-	Subject string `json:"subject"`
-	Version int    `json:"version"`
-	Schema  string `json:"schema"`
-	ID      int    `json:"id"`
-}
-
-type isCompatibleResponse struct {
-	IsCompatible bool `json:"is_compatible"`
-}
 
 const (
 	schemaByID       = "/schemas/ids/%d"
@@ -471,53 +401,13 @@ func (client *SchemaRegistryClient) getCodecCreationEnabled() bool {
 	return client.codecCreationEnabled
 }
 
-// ID ensures access to ID
-func (schema *Schema) ID() int {
-	return schema.id
-}
-
-// Schema ensures access to Schema
-func (schema *Schema) Schema() string {
-	return schema.schema
-}
-
-// Version ensures access to Version
-func (schema *Schema) Version() int {
-	return schema.version
-}
-
-// Codec ensures access to Codec
-// Will try to initialize a new one if it hasn't been initialized before
-// Will return nil if it can't initialize a codec from the schema
-func (schema *Schema) Codec() *goavro.Codec {
-	if schema.codec == nil {
-		codec, err := goavro.NewCodec(schema.Schema())
-		if err == nil {
-			schema.codec = codec
-		}
-	}
-	return schema.codec
-}
-
 func cacheKey(subject string, version string) string {
 	return fmt.Sprintf("%s-%s", subject, version)
 }
 
-func getConcreteSubject(subject string, isKey bool) string {
-	if isKey {
-		subject = fmt.Sprintf("%s-key", subject)
-	} else {
-		subject = fmt.Sprintf("%s-value", subject)
-	}
-	return subject
-}
-
 func createError(resp *http.Response) error {
 	decoder := json.NewDecoder(resp.Body)
-	var errorResp struct {
-		ErrorCode int    `json:"error_code"`
-		Message   string `json:"message"`
-	}
+	var errorResp errorResponse
 	err := decoder.Decode(&errorResp)
 	if err == nil {
 		return fmt.Errorf("%s: %s", resp.Status, errorResp.Message)

@@ -17,29 +17,10 @@ import (
 	"github.com/gorilla/mux"
 )
 
-// Compatibility enforces compatibility rules when newer schemas are registered in the same subject
-// See https://docs.confluent.io/5.5.0/schema-registry/develop/api.html#compatibility
-type Compatibility string
-
-const (
-	CompatibilityBackward           Compatibility = "BACKWARD"
-	CompatibilityBackwardTransitive Compatibility = "BACKWARD_TRANSITIVE"
-	CompatibilityForward            Compatibility = "FORWARD"
-	CompatibilityForwardTransitive  Compatibility = "FORWARD_TRANSITIVE"
-	CompatibilityFull               Compatibility = "FULL"
-	CompatibilityFullTransitive     Compatibility = "FULL_TRANSITIVE"
-	CompatibilityNone               Compatibility = "NONE"
-)
-
 const (
 	responseContentType         = "application/vnd.schemaregistry.v1+json"
 	acceptableContentTypesRegex = "application/(vnd\\.schemaregistry\\.v1\\+json|vnd\\.schemaregistry\\+json|octet\\-stream|json)"
 )
-
-type errorResponse struct {
-	ErrorCode int    `json:"error_code"`
-	Message   string `json:"message"`
-}
 
 type mockSchemaRegistryServerSchema struct {
 	ID         int
