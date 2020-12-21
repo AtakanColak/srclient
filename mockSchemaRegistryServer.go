@@ -100,6 +100,7 @@ func (m *MockSchemaRegistryServer) ServeHTTP(w http.ResponseWriter, r *http.Requ
 }
 
 func (m *MockSchemaRegistryServer) initializeRoutes() {
+	m.Router.NotFoundHandler = http.HandlerFunc(m.handleNotFoundRequest)
 	m.Router.HandleFunc("/subjects", m.getSubjects).Methods("GET")
 	m.Router.HandleFunc("/schemas/types", m.getSchemaTypes).Methods("GET")
 	m.Router.HandleFunc("/schemas/ids/{id}", m.getSchemaWithID).Methods("GET")
@@ -112,7 +113,6 @@ func (m *MockSchemaRegistryServer) initializeRoutes() {
 	m.Router.HandleFunc("/subjects/{subject}/versions/{version}", m.getSchemaWithVersion).Methods("GET")
 	m.Router.HandleFunc("/subjects/{subject}/versions/{version}/schema", m.getSchemaWithVersionUnescaped).Methods("GET")
 	m.Router.HandleFunc("/compatibility/subjects/{subject}/versions/{version}", m.checkIfSchemaCompatible).Methods("POST")
-	m.Router.HandleFunc("/mode", m.handleUnimplementedModeRequest)
 	m.Router.HandleFunc("/config", m.getConfig).Methods("GET")
 }
 
@@ -524,16 +524,12 @@ func (m *MockSchemaRegistryServer) deleteVersion(w http.ResponseWriter, r *http.
 	respond(w, http.StatusOK, v)
 }
 
-func (m *MockSchemaRegistryServer) handleUnimplementedModeRequest(w http.ResponseWriter, r *http.Request) {
-	panic("not implemented")
-}
-
 func (m *MockSchemaRegistryServer) getConfig(w http.ResponseWriter, r *http.Request) {
-	panic("not implemented")
+	respond(w, http.StatusOK, map[string]interface{}{"compatibilityLevel": "FULL"})
 }
 
-func (m *MockSchemaRegistryServer) handleUnimplementedConfigRequest(w http.ResponseWriter, r *http.Request) {
-	panic("not implemented")
+func (m *MockSchemaRegistryServer) handleNotFoundRequest(w http.ResponseWriter, r *http.Request) {
+	respondWithError(w, http.StatusNotFound, 404, "Not found")
 }
 
 func respondWithError(w http.ResponseWriter, statusCode, errorCode int, message string) {

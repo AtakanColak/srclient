@@ -127,9 +127,9 @@ func TestCheckIfSchemaCompatible(t *testing.T) {
 }
 
 func TestGetConfig(t *testing.T) {
-	doRequest(t, "GET", "http://example.com/config", nil, []byte(``))
+	doRequest(t, "GET", "http://example.com/config", nil, []byte(`{"compatibilityLevel":"FULL"}`))
 }
 
 func TestMode(t *testing.T) {
-	doRequest(t, "GET", "http://example.com/mode", nil, []byte(``))
+	doRequest(t, "GET", "http://example.com/mode", nil, []byte(`{"error_code":404,"message":"Not found"}`))
 }
