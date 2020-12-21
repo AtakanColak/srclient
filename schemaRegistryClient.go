@@ -23,28 +23,30 @@ import (
 // which in turn can be used to serialize and
 // deserialize data.
 type SchemaRegistryClient struct {
-	schemaRegistryURL        string
-	credentials              *credentials
 	httpClient               *http.Client
+	sem                      *semaphore.Weighted
+	schemaRegistryURL        string
+	basicAuthUsername        string
+	basicAuthPassword        string
 	cachingEnabled           bool
-	cachingEnabledLock       sync.RWMutex
 	codecCreationEnabled     bool
+	cachingEnabledLock       sync.RWMutex
 	codecCreationEnabledLock sync.RWMutex
 	idSchemaCache            map[int]*Schema
-	idSchemaCacheLock        sync.RWMutex
 	subjectSchemaCache       map[string]*Schema
+	idSchemaCacheLock        sync.RWMutex
 	subjectSchemaCacheLock   sync.RWMutex
-	sem                      *semaphore.Weighted
 }
 
-var _ ISchemaRegistryClient = new(SchemaRegistryClient)
-
 const (
-	schemaByID       = "/schemas/ids/%d"
-	subjectVersions  = "/subjects/%s/versions"
-	subjectByVersion = "/subjects/%s/versions/%s"
-	subjects         = "/subjects"
-	contentType      = "application/vnd.schemaregistry.v1+json"
+	urlGetSubjects     = "/subjects"
+	urlGetSchemaTypes  = "/schemas/types"
+	urlGetSchemaWithID = ""
+	schemaByID         = "/schemas/ids/%d"
+	subjectVersions    = "/subjects/%s/versions"
+	subjectByVersion   = "/subjects/%s/versions/%s"
+	subjects           = "/subjects"
+	contentType        = "application/vnd.schemaregistry.v1+json"
 )
 
 // CreateSchemaRegistryClient creates a client that allows
